@@ -1,0 +1,5 @@
+{
+  "name": "Extrator de Cores",
+  "description": "Uma aplicação web para extrair uma paleta de cores de uma imagem. Permite ao usuário carregar uma imagem, ajustar o tamanho da paleta, editar cores com um conta-gotas e exportar o resultado para PDF.",
+  "requestFramePermissions": []
+}
