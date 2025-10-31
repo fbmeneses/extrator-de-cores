@@ -398,9 +398,9 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="mt-8 lg:mt-0 w-full lg:w-[500px] lg:flex-shrink-0 flex flex-col">
+                    <div className="mt-8 lg:mt-0 w-full lg:w-[450px] lg:flex-shrink-0 flex flex-col">
                         <h2 className="text-xl font-semibold mb-4 flex-shrink-0">Paleta de cores editável</h2>
-                        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6 sm:p-8 flex-1 min-h-0 overflow-y-auto">
+                        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 flex-1 min-h-0 overflow-y-auto">
                             {isLoading && palette.length === 0 ? (
                                 <div className="flex items-center justify-center h-40">
                                     <p>Analisando imagem...</p>
