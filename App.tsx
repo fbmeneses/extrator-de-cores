@@ -2,8 +2,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ImageUploader from './components/ImageUploader';
 import PaletteSummary from './components/PaletteSummary';
 import EditablePalette from './components/EditablePalette';
-import { type Color, rgbToHex, hexToRgb, rgbToHsl } from './utils/colorUtils';
-import { ZoomInIcon, ZoomOutIcon, ResetZoomIcon } from './components/Icons';
+import { type Color, rgbToHex, hexToRgb, rgbToHsl, hslToRgb } from './utils/colorUtils';
+import { ZoomInIcon, ZoomOutIcon, ResetZoomIcon, SparkleIcon, UndoIcon, RedoIcon } from './components/Icons';
 
 declare const ColorThief: any;
 declare const jspdf: any;
@@ -17,7 +17,9 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
     
-    // State for zoom and pan
+    const [history, setHistory] = useState<Color[][]>([[]]);
+    const [historyIndex, setHistoryIndex] = useState(0);
+
     const [zoom, setZoom] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [baseScale, setBaseScale] = useState(1);
@@ -33,6 +35,19 @@ const App: React.FC = () => {
     useEffect(() => {
         positionRef.current = position;
     }, [position]);
+
+    const updatePalette = useCallback((newPalette: Color[]) => {
+        let historyToModify = history.slice(0, historyIndex + 1);
+        historyToModify.push(newPalette);
+
+        if (historyToModify.length > 11) { // 1 current + 10 undo steps
+            historyToModify = historyToModify.slice(historyToModify.length - 11);
+        }
+
+        setHistory(historyToModify);
+        setHistoryIndex(historyToModify.length - 1);
+        setPalette(newPalette);
+    }, [history, historyIndex]);
 
     const extractPalette = useCallback(() => {
         if (!imageRef.current) {
@@ -50,21 +65,33 @@ const App: React.FC = () => {
                     hex: rgbToHex(rgb[0], rgb[1], rgb[2]),
                     hsl: rgbToHsl(rgb[0], rgb[1], rgb[2]),
                 }));
-                setPalette(newPalette);
+
+                const isInitialPaletteForSession = history.length === 1 && history[0].length === 0;
+
+                if (isInitialPaletteForSession) {
+                    // This is the first palette for a new image session, set it as the base state
+                    setHistory([newPalette]);
+                    setHistoryIndex(0);
+                    setPalette(newPalette);
+                } else {
+                    // This is a subsequent change, add to history to be undoable
+                    updatePalette(newPalette);
+                }
+                
                 setError(null);
             } else {
                 console.warn("ColorThief did not return a valid palette. Result:", result);
                 setError('Não foi possível extrair a paleta. A imagem pode ser muito pequena, ter poucas cores ou ser de um formato incompatível.');
-                setPalette([]);
+                updatePalette([]);
             }
         } catch (e) {
             console.error("Error extracting colors:", e);
             setError('Ocorreu um erro ao extrair as cores. Verifique a URL da imagem ou tente uma imagem diferente.');
-            setPalette([]);
+            updatePalette([]);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [updatePalette, history]);
     
     const handleImageLoad = useCallback(() => {
         if (imageRef.current && imageContainerRef.current) {
@@ -83,12 +110,18 @@ const App: React.FC = () => {
         extractPalette();
     }, [extractPalette]);
 
+    const resetHistory = () => {
+        setPalette([]);
+        setHistory([[]]);
+        setHistoryIndex(0);
+        setSelectedColorIndex(null);
+        nextColorToAdd.current = 'white';
+    };
+    
     const loadImageFromUrl = useCallback(async (url: string) => {
         setIsLoading(true);
         setError(null);
-        setPalette([]);
-        setSelectedColorIndex(null);
-        nextColorToAdd.current = 'white';
+        resetHistory();
 
         if (currentObjectUrl.current) {
             URL.revokeObjectURL(currentObjectUrl.current);
@@ -128,9 +161,7 @@ const App: React.FC = () => {
             }
             setIsLoading(true);
             setError(null);
-            setPalette([]);
-            setSelectedColorIndex(null);
-            nextColorToAdd.current = 'white';
+            resetHistory();
             setImageSrc(e.target?.result as string);
         };
         reader.readAsDataURL(file);
@@ -146,44 +177,36 @@ const App: React.FC = () => {
 
     const handlePaletteSizeChange = useCallback((newSize: number) => {
         if (newSize >= 2 && newSize <= 20) {
-            setPalette(prevPalette => {
-                if (newSize > prevPalette.length) {
-                    const colorsToAdd = newSize - prevPalette.length;
-                    const newColors: Color[] = [];
+            let newPalette;
+            if (newSize > palette.length) {
+                const colorsToAdd = newSize - palette.length;
+                const newColors: Color[] = [];
 
-                    const whiteColor: Color = {
-                        hex: '#FFFFFF',
-                        rgb: 'rgb(255, 255, 255)',
-                        hsl: '0, 0%, 100%',
-                    };
+                const whiteColor: Color = { hex: '#FFFFFF', rgb: 'rgb(255, 255, 255)', hsl: '0, 0%, 100%' };
+                const grayRgb = hexToRgb('#9f9f9f')!;
+                const grayColor: Color = { hex: '#9F9F9F', rgb: `rgb(${grayRgb[0]}, ${grayRgb[1]}, ${grayRgb[2]})`, hsl: rgbToHsl(grayRgb[0], grayRgb[1], grayRgb[2]) };
 
-                    const grayRgb = hexToRgb('#9f9f9f')!;
-                    const grayColor: Color = {
-                        hex: '#9F9F9F',
-                        rgb: `rgb(${grayRgb[0]}, ${grayRgb[1]}, ${grayRgb[2]})`,
-                        hsl: rgbToHsl(grayRgb[0], grayRgb[1], grayRgb[2]),
-                    };
-
-                    for (let i = 0; i < colorsToAdd; i++) {
-                        if (nextColorToAdd.current === 'white') {
-                            newColors.push(whiteColor);
-                            nextColorToAdd.current = 'gray';
-                        } else {
-                            newColors.push(grayColor);
-                            nextColorToAdd.current = 'white';
-                        }
+                for (let i = 0; i < colorsToAdd; i++) {
+                    if (nextColorToAdd.current === 'white') {
+                        newColors.push(whiteColor);
+                        nextColorToAdd.current = 'gray';
+                    } else {
+                        newColors.push(grayColor);
+                        nextColorToAdd.current = 'white';
                     }
-                    return [...prevPalette, ...newColors];
-                } else if (newSize < prevPalette.length) {
-                    if(selectedColorIndex && selectedColorIndex >= newSize) {
-                        setSelectedColorIndex(null);
-                    }
-                    return prevPalette.slice(0, newSize);
                 }
-                return prevPalette;
-            });
+                newPalette = [...palette, ...newColors];
+            } else if (newSize < palette.length) {
+                if(selectedColorIndex && selectedColorIndex >= newSize) {
+                    setSelectedColorIndex(null);
+                }
+                newPalette = palette.slice(0, newSize);
+            } else {
+                return; // No change
+            }
+            updatePalette(newPalette);
         }
-    }, [selectedColorIndex]);
+    }, [palette, selectedColorIndex, updatePalette]);
 
     const handleColorUpdate = useCallback((index: number, newHex: string) => {
         const rgbArray = hexToRgb(newHex);
@@ -195,12 +218,74 @@ const App: React.FC = () => {
             hsl: rgbToHsl(rgbArray[0], rgbArray[1], rgbArray[2])
         };
 
-        setPalette(prevPalette => {
-            const updatedPalette = [...prevPalette];
-            updatedPalette[index] = newColor;
-            return updatedPalette;
-        });
-    }, []);
+        const updatedPalette = [...palette];
+        updatedPalette[index] = newColor;
+        updatePalette(updatedPalette);
+    }, [palette, updatePalette]);
+
+    const handleColorRemove = useCallback((indexToRemove: number) => {
+        if (palette.length <= 2) {
+            return;
+        }
+    
+        const newPalette = palette.filter((_, index) => index !== indexToRemove);
+    
+        if (selectedColorIndex !== null) {
+            if (selectedColorIndex === indexToRemove) {
+                setSelectedColorIndex(null);
+            } else if (selectedColorIndex > indexToRemove) {
+                setSelectedColorIndex(prevIndex => (prevIndex !== null ? prevIndex - 1 : null));
+            }
+        }
+    
+        updatePalette(newPalette);
+    }, [palette, selectedColorIndex, updatePalette]);
+
+    const addSimilarColor = useCallback(() => {
+        if (palette.length === 0 || palette.length >= 20) return;
+
+        const randomColor = palette[Math.floor(Math.random() * palette.length)];
+        const [h, s, l] = randomColor.hsl.split(',').map(v => parseInt(v.replace('%', '').trim()));
+
+        const h_offset = Math.floor(Math.random() * 41) - 20; // -20 to +20
+        const s_offset = Math.floor(Math.random() * 21) - 10; // -10 to +10
+        const l_offset = Math.floor(Math.random() * 21) - 10; // -10 to +10
+
+        const newH = (h + h_offset + 360) % 360;
+        const newS = Math.max(0, Math.min(100, s + s_offset));
+        const newL = Math.max(0, Math.min(100, l + l_offset));
+
+        const newRgbArray = hslToRgb(newH, newS, newL);
+        const newHex = rgbToHex(newRgbArray[0], newRgbArray[1], newRgbArray[2]);
+        
+        const newColor: Color = {
+            hex: newHex,
+            rgb: `rgb(${newRgbArray[0]}, ${newRgbArray[1]}, ${newRgbArray[2]})`,
+            hsl: `${newH}, ${newS}%, ${newL}%`
+        };
+
+        const newPalette = [...palette, newColor];
+        updatePalette(newPalette);
+    }, [palette, updatePalette]);
+
+    const canUndo = historyIndex > 0;
+    const canRedo = historyIndex < history.length - 1;
+
+    const handleUndo = () => {
+        if (canUndo) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setPalette(history[newIndex]);
+        }
+    };
+
+    const handleRedo = () => {
+        if (canRedo) {
+            const newIndex = historyIndex + 1;
+            setHistoryIndex(newIndex);
+            setPalette(history[newIndex]);
+        }
+    };
 
     const handleExport = async () => {
         if (!imageSrc || palette.length === 0) return;
@@ -270,13 +355,8 @@ const App: React.FC = () => {
         loadImageFromUrl(MOCK_IMAGE_SRC);
     }, [loadImageFromUrl]);
 
-    // Handlers for zoom and pan
-    const handleZoomIn = () => {
-        setZoom(prev => Math.min(prev * 1.2, 5)); // Max zoom 5x
-    };
-    const handleZoomOut = () => {
-        setZoom(prev => Math.max(prev / 1.2, baseScale * 0.9));
-    };
+    const handleZoomIn = () => setZoom(prev => Math.min(prev * 1.2, 5));
+    const handleZoomOut = () => setZoom(prev => Math.max(prev / 1.2, baseScale * 0.9));
     const handleResetZoom = useCallback(() => {
         setZoom(baseScale);
         setPosition({ x: 0, y: 0 });
@@ -286,19 +366,14 @@ const App: React.FC = () => {
         if (e.button !== 0 || !imageRef.current) return;
         e.preventDefault();
         isDraggingRef.current = true;
-        dragStartRef.current = {
-            x: e.clientX - positionRef.current.x,
-            y: e.clientY - positionRef.current.y
-        };
+        dragStartRef.current = { x: e.clientX - positionRef.current.x, y: e.clientY - positionRef.current.y };
         document.body.style.cursor = 'grabbing';
     }, []);
 
     const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         if (!isDraggingRef.current || !imageRef.current) return;
         e.preventDefault();
-        const newX = e.clientX - dragStartRef.current.x;
-        const newY = e.clientY - dragStartRef.current.y;
-        setPosition({ x: newX, y: newY });
+        setPosition({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
     }, []);
 
     const handleMouseUp = useCallback(() => {
@@ -311,7 +386,6 @@ const App: React.FC = () => {
             <div className="p-6 sm:p-8 h-full flex flex-col">
                 <h1 className="text-4xl sm:text-5xl font-bold mb-8 flex-shrink-0">Extrator de Cores</h1>
                 <main className="flex flex-col lg:flex-row lg:gap-8 flex-1 min-h-0">
-                    {/* Container for Sidebar, Image, and Summary */}
                     <div className="flex-1 min-w-0 flex flex-col">
                         <div className="flex-1 flex flex-col lg:flex-row lg:gap-8 min-h-0">
                             <aside className="w-full lg:w-[250px] lg:flex-shrink-0">
@@ -374,11 +448,43 @@ const App: React.FC = () => {
                             </div>
                         </div>
                         
-                        <div className="flex-shrink-0 mt-8">
+                        {palette.length > 0 && (
+                            <div className="flex justify-end mt-6 mb-2">
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={handleUndo}
+                                        disabled={!canUndo}
+                                        className="flex items-center justify-center bg-[#21262d] hover:bg-[#30363d] text-white p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Desfazer"
+                                    >
+                                        <UndoIcon />
+                                    </button>
+                                    <button
+                                        onClick={handleRedo}
+                                        disabled={!canRedo}
+                                        className="flex items-center justify-center bg-[#21262d] hover:bg-[#30363d] text-white p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Refazer"
+                                    >
+                                        <RedoIcon />
+                                    </button>
+                                    <button
+                                        onClick={addSimilarColor}
+                                        disabled={palette.length >= 20}
+                                        className="flex items-center justify-center space-x-3 bg-[#21262d] hover:bg-[#30363d] text-white text-base font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={palette.length >= 20 ? "Máximo de 20 cores atingido" : "Gera uma cor com base na paleta atual"}
+                                    >
+                                        <SparkleIcon />
+                                        <span>Adicionar Cor Similar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex-shrink-0">
                             {error && <p className="text-red-400 mb-4">{error}</p>}
 
                             {(isLoading || palette.length > 0) && (
-                                <div>
+                                <div className="mt-4">
                                     <h2 className="text-xl font-semibold mb-4">Paleta de cores resumo</h2>
                                     {isLoading ? (
                                         <div className="flex items-center justify-center h-20 bg-[#161b22] border border-[#30363d] rounded-lg">
@@ -409,6 +515,7 @@ const App: React.FC = () => {
                                 <EditablePalette
                                     palette={palette}
                                     onColorUpdate={handleColorUpdate}
+                                    onColorRemove={handleColorRemove}
                                     selectedColorIndex={selectedColorIndex}
                                     setSelectedColorIndex={setSelectedColorIndex}
                                 />

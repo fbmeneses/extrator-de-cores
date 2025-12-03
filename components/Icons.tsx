@@ -61,3 +61,28 @@ export const ResetZoomIcon: React.FC = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4h4m12 4V4h-4M4 16v4h4m12-4v4h-4" />
     </svg>
 );
+
+export const SparkleIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18l-1.813-2.096a4.5 4.5 0 01-1.921-3.565V8.586a4.5 4.5 0 011.921-3.565L9 3l1.813 2.096a4.5 4.5 0 011.921 3.565v3.753a4.5 4.5 0 01-1.921 3.565z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 1.5l-1.5 3-1.5-3 1.5-3 1.5 3zM16.5 22.5l-1.5-3-1.5 3 1.5 3 1.5-3zM22.5 10.5l-3 1.5-3-1.5 3-1.5 3 1.5zM1.5 10.5l3 1.5 3-1.5-3-1.5-3 1.5z" />
+    </svg>
+);
+
+export const UndoIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+    </svg>
+);
+
+export const RedoIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+    </svg>
+);
+
+export const CloseIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
